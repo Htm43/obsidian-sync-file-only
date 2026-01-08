@@ -17,7 +17,7 @@ export default class SyncFileOnlyPlugin extends Plugin {
 			id: 'link-pane-for-sync',
 			name: 'Link this pane for file sync',
 			callback: () => {
-				const activeLeaf = this.app.workspace.activeLeaf;
+				const activeLeaf = this.app.workspace.getLeaf();
 				if (!activeLeaf) {
 					return;
 				}
@@ -41,7 +41,7 @@ export default class SyncFileOnlyPlugin extends Plugin {
 					return;
 				}
 
-				const leaf = this.app.workspace.activeLeaf;
+				const leaf = this.app.workspace.getLeaf();
 				if (leaf && leaf.view) {
 					this.syncFileToLinkedLeaves(leaf, file);
 				}
@@ -72,7 +72,7 @@ export default class SyncFileOnlyPlugin extends Plugin {
 	}
 
 	private addLinkMenuItem(menu: Menu, leaf: WorkspaceLeaf) {
-		menu.addItem((item: any) => {
+		menu.addItem((item) => {
 			item.setTitle('Link this pane for file sync')
 				.setIcon('link')
 				.onClick(() => {
@@ -87,7 +87,8 @@ export default class SyncFileOnlyPlugin extends Plugin {
 	}
 
 	private linkLeafWithPartner(activeLeaf: WorkspaceLeaf, options: { createIfNone?: boolean } = {}): WorkspaceLeaf | null {
-		const activeFile = (activeLeaf.view as any)?.file as TFile | null;
+		const view = activeLeaf.view;
+		const activeFile = view && 'file' in view ? (view as { file: TFile }).file : null;
 		if (!activeFile) {
 			return null;
 		}
@@ -100,14 +101,14 @@ export default class SyncFileOnlyPlugin extends Plugin {
 		if (rootSplit) {
 			this.app.workspace.iterateAllLeaves((leaf) => {
 				// Skip if leaf is not in main area (check if it's descendant of rootSplit)
-				let parent = leaf.parent;
+				let parent: unknown = leaf.parent;
 				let isInRootSplit = false;
 				while (parent) {
 					if (parent === rootSplit) {
 						isInRootSplit = true;
 						break;
 					}
-					parent = (parent as any).parent;
+					parent = (parent as { parent?: unknown }).parent;
 				}
 
 				if (!isInRootSplit) {
@@ -115,7 +116,8 @@ export default class SyncFileOnlyPlugin extends Plugin {
 				}
 				
 				if (leaf !== activeLeaf && !partner) {
-					const leafFile = (leaf.view as any)?.file as TFile | null;
+					const leafView = leaf.view;
+					const leafFile = leafView && 'file' in leafView ? (leafView as { file: TFile }).file : null;
 					if (leafFile && leafFile.path === activeFilePath) {
 						partner = leaf;
 					}
@@ -127,7 +129,7 @@ export default class SyncFileOnlyPlugin extends Plugin {
 		if (!partner && options.createIfNone) {
 			const newLeaf = this.app.workspace.createLeafBySplit(activeLeaf, 'vertical', false);
 			if (newLeaf) {
-				newLeaf.openFile(activeFile);
+				void newLeaf.openFile(activeFile);
 				partner = newLeaf;
 			}
 		}
@@ -185,11 +187,11 @@ export default class SyncFileOnlyPlugin extends Plugin {
 		});
 	}
 
-	async loadSettings() {
+	async loadSettings(): Promise<void> {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
 	}
 
-	async saveSettings() {
+	async saveSettings(): Promise<void> {
 		await this.saveData(this.settings);
 	}
 }
