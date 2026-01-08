@@ -1,16 +1,30 @@
-# Obsidian Sample Plugin
+# Obsidian Sync File Only Plugin
 
-This is a sample plugin for Obsidian (https://obsidian.md).
+This plugin pairs panes 1:1 so opening a file in one automatically opens it in its paired pane. You can have multiple independent pairs.
 
-This project uses TypeScript to provide type checking and documentation.
-The repo depends on the latest plugin API (obsidian.d.ts) in TypeScript Definition format, which contains TSDoc comments describing what it does.
+## Features
 
-This sample plugin demonstrates some of the basic functionality the plugin API can do.
-- Adds a ribbon icon, which shows a Notice when clicked.
-- Adds a command "Open modal (simple)" which opens a Modal.
-- Adds a plugin setting tab to the settings page.
-- Registers a global click event and output 'click' to the console.
-- Registers a global interval which logs 'setInterval' to the console.
+- **Pair-based sync**: One-to-one pairing; you can keep multiple independent pairs
+- **Auto-create partner**: If no partner exists, a new split with the same file is created and paired
+- **Non-intrusive**: Unlinked panes (Calendar, File Explorer, etc.) are not affected
+- **Two ways to link**: Command palette or tab right-click
+
+## How to Use
+
+1. **Install & enable**: Place the plugin in your vault and enable it in Settings → Community plugins
+2. **Link a pair** (either way):
+    - Command palette: Ctrl/Cmd+P → “Link this pane for file sync”
+    - Tab right-click: Right-click a file tab → “Link this pane for file sync”
+3. **What happens**:
+    - Prefers a sibling tab in the same split; otherwise a tab with the same group; if none, auto-creates a vertical split with the same file and pairs it
+    - Only that paired pane will sync with this one; other pairs stay independent
+4. **Unlinked panes**: Calendar/File Explorer etc. remain unchanged
+
+## Example
+
+- Pair A-B: link Pane A with Pane B → they sync with each other
+- Pair C-D: link Pane C with Pane D → they sync with each other, independent of A-B
+- If only Pane A exists: running “Link this pane for file sync” auto-creates a partner split, opens the same file, and pairs A with the new pane
 
 ## First time developing plugins?
 
