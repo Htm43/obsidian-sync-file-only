@@ -24,7 +24,7 @@ export class SyncSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Enable file sync')
-			.setDesc('Enable 1:1 pane pairing for file sync. Use "Link this pane for file sync" on each pane you want to pair.')
+			.setDesc('Pair panes for synchronized file viewing')
 			.addToggle(toggle => toggle
 				.setValue(this.plugin.settings.enabled)
 				.onChange(async (value) => {

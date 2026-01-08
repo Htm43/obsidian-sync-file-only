@@ -160,7 +160,7 @@ export default class SyncFileOnlyPlugin extends Plugin {
 			if (linkedSet && linkedSet.size > 0) {
 				const [leaf] = Array.from(linkedSet);
 				if (leaf?.view) {
-					leaf.openFile(file);
+					void leaf.openFile(file);
 				}
 			}
 		} finally {
@@ -188,7 +188,7 @@ export default class SyncFileOnlyPlugin extends Plugin {
 	}
 
 	async loadSettings(): Promise<void> {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, (await this.loadData()) as SyncFileOnlySettings);
 	}
 
 	async saveSettings(): Promise<void> {
