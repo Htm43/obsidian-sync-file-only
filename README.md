@@ -6,28 +6,47 @@ This plugin pairs panes 1:1 so opening a file in one automatically opens it in i
 
 - **Pair-based sync**: One-to-one pairing; you can keep multiple independent pairs
 - **Auto-create partner**: If no partner exists, a new split with the same file is created and paired
+- **Auto-restore links**: Optionally restore linked panes on restart (disabled by default)
+- **Unlink panes**: Easily break links via command palette or right-click menu
 - **Non-intrusive**: Unlinked panes (Calendar, File Explorer, etc.) are not affected
 - **Two ways to link**: Command palette or tab right-click
 
 ## How to Use
 
+### Linking Panes
+
 1. **Install & enable**: Place the plugin in your vault and enable it in Settings → Community plugins
 2. **Link a pair** (either way):
-    - Command palette: Ctrl/Cmd+P → “Link this pane for file sync”
-    - Tab right-click: Right-click a file tab → “Link this pane for file sync”
+    - Command palette: Ctrl/Cmd+P → "Link this pane for file sync"
+    - Tab right-click: Right-click a file tab → "Link this pane for file sync"
 3. **What happens**:
     - Searches the main editor area for another tab with the same file open
     - If found, pairs with that tab
     - If not found, auto-creates a vertical split with the same file and pairs with it
     - Only that paired pane will sync with this one; other pairs stay independent
     - Sidebar panes (Calendar, File Explorer) are ignored
-4. **Unlinked panes**: Calendar/File Explorer etc. remain unchanged
+    - A 🔗 indicator appears on linked pane tabs
+
+### Unlinking Panes
+
+- Command palette: "Unlink this pane from sync"
+- Tab right-click: Right-click a linked tab → "Unlink this pane from sync"
+- Closing a linked pane automatically unlinks its partner
+
+### Auto-Restore Links (Optional)
+
+Enable "Auto-restore links on restart" in Settings → Sync File Only to automatically restore your pane links when Obsidian restarts.
+
+- Links are saved instantly when created, modified, or removed
+- On restart, links are restored if the same files are open
+- Disabled by default
 
 ## Example
 
 - Pair A-B: link Pane A with Pane B → they sync with each other
 - Pair C-D: link Pane C with Pane D → they sync with each other, independent of A-B
-- If only Pane A exists: running “Link this pane for file sync” auto-creates a partner split, opens the same file, and pairs A with the new pane
+- If only Pane A exists: running "Link this pane for file sync" auto-creates a partner split, opens the same file, and pairs A with the new pane
+
 ## What this plugin does NOT sync
 
 - **Cursor position**: Each pane maintains its own cursor, scroll, and edit state independently
@@ -47,7 +66,15 @@ This plugin takes a simpler approach: **file opens only**. You see the same file
 - Side-by-side reference viewing
 - Comparing different sections of the same file
 - Editing different parts without cursor interference
-## First time developing plugins?
+
+## Settings
+
+- **Enable file sync**: Toggle the entire plugin on/off
+- **Auto-restore links on restart**: Automatically restore linked panes when Obsidian restarts (requires the same files to be open)
+
+## Development
+
+### First time developing plugins?
 
 Quick starting guide for new plugin devs:
 
@@ -61,7 +88,7 @@ Quick starting guide for new plugin devs:
 - Enable plugin in settings window.
 - For updates to the Obsidian API run `npm update` in the command line under your repo folder.
 
-## Releasing new releases
+### Releasing new releases
 
 - Update your `manifest.json` with your new version number, such as `1.0.1`, and the minimum Obsidian version required for your latest release.
 - Update your `versions.json` file with `"new-plugin-version": "minimum-obsidian-version"` so older versions of Obsidian can download an older version of your plugin that's compatible.
@@ -72,25 +99,26 @@ Quick starting guide for new plugin devs:
 > You can simplify the version bump process by running `npm version patch`, `npm version minor` or `npm version major` after updating `minAppVersion` manually in `manifest.json`.
 > The command will bump version in `manifest.json` and `package.json`, and add the entry for the new version to `versions.json`
 
-## Adding your plugin to the community plugin list
+### Adding your plugin to the community plugin list
 
 - Check the [plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines).
 - Publish an initial version.
 - Make sure you have a `README.md` file in the root of your repo.
 - Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin.
 
-## How to use
+### How to use
 
 - Clone this repo.
 - Make sure your NodeJS is at least v16 (`node --version`).
 - `npm i` or `yarn` to install dependencies.
 - `npm run dev` to start compilation in watch mode.
 
-## Manually installing the plugin
+### Manually installing the plugin
 
 - Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/your-plugin-id/`.
 
-## Improve code quality with eslint
+### Improve code quality with eslint
+
 - [ESLint](https://eslint.org/) is a tool that analyzes your code to quickly find problems. You can run ESLint against your plugin to find common bugs and ways to improve your code. 
 - This project already has eslint preconfigured, you can invoke a check by running`npm run lint`
 - Together with a custom eslint [plugin](https://github.com/obsidianmd/eslint-plugin) for Obsidan specific code guidelines.
