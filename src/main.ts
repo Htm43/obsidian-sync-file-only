@@ -9,10 +9,8 @@ export default class SyncFileOnlyPlugin extends Plugin {
 	async onload() {
 		await this.loadSettings();
 
-		// Register the settings tab
 		this.addSettingTab(new SyncSettingTab(this.app, this));
 
-		// Add command to link panes for syncing
 		this.addCommand({
 			id: 'link-pane-for-sync',
 			name: 'Link this pane for file sync',
@@ -31,10 +29,25 @@ export default class SyncFileOnlyPlugin extends Plugin {
 			}
 		});
 
-		// Add right-click menu entry on file tabs (typed API: file-menu with source "tab-header")
+		this.addCommand({
+			id: 'unlink-pane-from-sync',
+			name: 'Unlink this pane from sync',
+			callback: () => {
+				const activeLeaf = this.app.workspace.getLeaf();
+				if (!activeLeaf) {
+					return;
+				}
+
+				if (this.unlinkLeaf(activeLeaf)) {
+					new Notice('Unlinked from sync');
+				} else {
+					new Notice('This pane is not linked');
+				}
+			}
+		});
+
 		this.registerFileTabMenu();
 
-		// Listen for active leaf changes to sync linked panes
 		this.registerEvent(
 			this.app.workspace.on('active-leaf-change', (leaf: WorkspaceLeaf | null) => {
 				if (!this.settings.enabled || this.isSyncing || !leaf) {
@@ -45,11 +58,14 @@ export default class SyncFileOnlyPlugin extends Plugin {
 				const file = view && 'file' in view ? (view as { file: TFile }).file : null;
 				if (file) {
 					this.syncFileToLinkedLeaves(leaf, file);
+					
+					if (this.settings.autoRestoreLinks && this.linkedLeaves.has(leaf) && this.linkedLeaves.get(leaf)!.size > 0) {
+						this.saveLinkStatesToSettings();
+					}
 				}
 			})
 		);
 
-		// Clean up linked leaves when they are closed
 		this.registerEvent(
 			this.app.workspace.on('layout-change', () => {
 				this.cleanupClosedLeaves();
@@ -57,16 +73,23 @@ export default class SyncFileOnlyPlugin extends Plugin {
 			})
 		);
 
-		// Initialize visual indicators
+		// Restore links on startup if enabled
+		this.app.workspace.onLayoutReady(() => {
+			if (this.settings.autoRestoreLinks) {
+				this.restoreLinksFromSettings();
+			}
+		});
+
 		this.updateLeafVisualIndicators();
 	}
 
 	onunload() {
+		// Save current link states before unloading
+		this.saveLinkStatesToSettings();
 		this.linkedLeaves.clear();
 	}
 
 	private registerFileTabMenu() {
-		// file-menu is typed and fires for tab headers with source === "tab-header"
 		this.registerEvent(
 			this.app.workspace.on('file-menu', (menu: Menu, file: TFile, source: string, leaf?: WorkspaceLeaf) => {
 				if (source === 'tab-header' && leaf) {
@@ -77,18 +100,53 @@ export default class SyncFileOnlyPlugin extends Plugin {
 	}
 
 	private addLinkMenuItem(menu: Menu, leaf: WorkspaceLeaf) {
-		menu.addItem((item) => {
-			item.setTitle('Link this pane for file sync')
-				.setIcon('link')
-				.onClick(() => {
-					const partner = this.linkLeafWithPartner(leaf, { createIfNone: true });
-					if (partner) {
-						new Notice('Linked with one pane for sync');
-					} else {
-						new Notice('No pane found or created to link');
-					}
-				});
-		});
+		const isLinked = this.linkedLeaves.has(leaf) && this.linkedLeaves.get(leaf)!.size > 0;
+
+		if (isLinked) {
+			menu.addItem((item) => {
+				item.setTitle('Unlink this pane from sync')
+					.setIcon('unlink')
+					.onClick(() => {
+						if (this.unlinkLeaf(leaf)) {
+							new Notice('Unlinked from sync');
+						}
+					});
+			});
+		} else {
+			menu.addItem((item) => {
+				item.setTitle('Link this pane for file sync')
+					.setIcon('link')
+					.onClick(() => {
+						const partner = this.linkLeafWithPartner(leaf, { createIfNone: true });
+						if (partner) {
+							new Notice('Linked with one pane for sync');
+						} else {
+							new Notice('No pane found or created to link');
+						}
+					});
+			});
+		}
+	}
+
+	private unlinkLeaf(leaf: WorkspaceLeaf): boolean {
+		const linkedSet = this.linkedLeaves.get(leaf);
+		if (!linkedSet || linkedSet.size === 0) {
+			return false;
+		}
+
+		const [partner] = Array.from(linkedSet);
+		if (partner) {
+			this.linkedLeaves.delete(leaf);
+			this.linkedLeaves.delete(partner);
+			
+			if (this.settings.autoRestoreLinks) {
+				this.saveLinkStatesToSettings();
+			}
+			
+			this.updateLeafVisualIndicators();
+		}
+
+		return true;
 	}
 
 	private linkLeafWithPartner(activeLeaf: WorkspaceLeaf, options: { createIfNone?: boolean } = {}): WorkspaceLeaf | null {
@@ -101,11 +159,9 @@ export default class SyncFileOnlyPlugin extends Plugin {
 		const activeFilePath = activeFile.path;
 		let partner: WorkspaceLeaf | null = null;
 
-		// Only search in main workspace area (rootSplit), not sidebars
 		const rootSplit = this.app.workspace.rootSplit;
 		if (rootSplit) {
 			this.app.workspace.iterateAllLeaves((leaf) => {
-				// Skip if leaf is not in main area (check if it's descendant of rootSplit)
 				let parent: unknown = leaf.parent;
 				let isInRootSplit = false;
 				while (parent) {
@@ -117,7 +173,7 @@ export default class SyncFileOnlyPlugin extends Plugin {
 				}
 
 				if (!isInRootSplit) {
-					return; // Skip sidebar leaves
+					return;
 				}
 				
 				if (leaf !== activeLeaf && !partner) {
@@ -130,7 +186,6 @@ export default class SyncFileOnlyPlugin extends Plugin {
 			});
 		}
 
-		// If no leaf has this file open and allowed, create a new split with the same file
 		if (!partner && options.createIfNone) {
 			const newLeaf = this.app.workspace.createLeafBySplit(activeLeaf, 'vertical', false);
 			if (newLeaf) {
@@ -151,6 +206,10 @@ export default class SyncFileOnlyPlugin extends Plugin {
 			this.linkedLeaves.get(activeLeaf)!.add(partner);
 			this.linkedLeaves.get(partner)!.add(activeLeaf);
 			this.updateLeafVisualIndicators();
+			
+			if (this.settings.autoRestoreLinks) {
+				this.saveLinkStatesToSettings();
+			}
 		}
 
 		return partner;
@@ -175,7 +234,6 @@ export default class SyncFileOnlyPlugin extends Plugin {
 	}
 
 	private updateLeafVisualIndicators() {
-		// Remove all existing indicators
 		this.app.workspace.iterateAllLeaves((leaf) => {
 			const tabHeaderEl = (leaf as { tabHeaderEl?: HTMLElement }).tabHeaderEl;
 			if (tabHeaderEl) {
@@ -186,7 +244,6 @@ export default class SyncFileOnlyPlugin extends Plugin {
 			}
 		});
 
-		// Add indicators to linked leaves
 		this.linkedLeaves.forEach((linkedSet, leaf) => {
 			if (linkedSet.size > 0) {
 				const tabHeaderEl = (leaf as { tabHeaderEl?: HTMLElement }).tabHeaderEl;
@@ -200,22 +257,141 @@ export default class SyncFileOnlyPlugin extends Plugin {
 	}
 
 	private cleanupClosedLeaves() {
-		// Remove entries for leaves that no longer exist
 		const activeLeaves = new Set<WorkspaceLeaf>();
 		this.app.workspace.iterateAllLeaves((leaf) => {
 			activeLeaves.add(leaf);
 		});
 
+		let hasChanges = false;
 		const keysToDelete: WorkspaceLeaf[] = [];
+		
 		this.linkedLeaves.forEach((linkedSet, leaf) => {
 			if (!activeLeaves.has(leaf)) {
 				keysToDelete.push(leaf);
+				hasChanges = true;
+			} else {
+				// Check if partner is still active
+				const [partner] = Array.from(linkedSet);
+				if (partner && !activeLeaves.has(partner)) {
+					keysToDelete.push(leaf);
+					hasChanges = true;
+				}
 			}
 		});
 
-		keysToDelete.forEach((leaf) => {
-			this.linkedLeaves.delete(leaf);
+		if (hasChanges) {
+			keysToDelete.forEach((leaf) => {
+				const linkedSet = this.linkedLeaves.get(leaf);
+				if (linkedSet) {
+					const [partner] = Array.from(linkedSet);
+					if (partner) {
+						this.linkedLeaves.delete(partner);
+					}
+				}
+				this.linkedLeaves.delete(leaf);
+			});
+			
+			if (this.settings.autoRestoreLinks) {
+				this.saveLinkStatesToSettings();
+			}
+		}
+
+		this.updateLeafVisualIndicators();
+	}
+
+	private saveLinkStatesToSettings() {
+		const filePaths: string[] = [];
+		const processedLeaves = new Set<WorkspaceLeaf>();
+
+		this.linkedLeaves.forEach((linkedSet, leaf) => {
+			if (processedLeaves.has(leaf) || linkedSet.size === 0) {
+				return;
+			}
+
+			const view = leaf.view;
+			const file = view && 'file' in view ? (view as { file: TFile }).file : null;
+			if (!file) {
+				return;
+			}
+
+			const [partner] = Array.from(linkedSet);
+			if (!partner) {
+				return;
+			}
+
+			filePaths.push(file.path);
+
+			processedLeaves.add(leaf);
+			processedLeaves.add(partner);
 		});
+
+		this.settings.savedPairs = filePaths;
+		void this.saveSettings();
+	}
+
+	private restoreLinksFromSettings() {
+		if (!this.settings.savedPairs || this.settings.savedPairs.length === 0) {
+			return;
+		}
+
+		const rootSplit = this.app.workspace.rootSplit;
+		if (!rootSplit) {
+			return;
+		}
+
+		let restoredCount = 0;
+
+		this.settings.savedPairs.forEach((filePath) => {
+			const leaves: WorkspaceLeaf[] = [];
+
+			this.app.workspace.iterateAllLeaves((leaf) => {
+				let parent: unknown = leaf.parent;
+				let isInRootSplit = false;
+				while (parent) {
+					if (parent === rootSplit) {
+						isInRootSplit = true;
+						break;
+					}
+					parent = (parent as { parent?: unknown }).parent;
+				}
+
+				if (!isInRootSplit) {
+					return;
+				}
+
+				const view = leaf.view;
+				const file = view && 'file' in view ? (view as { file: TFile }).file : null;
+				if (!file) {
+					return;
+				}
+
+				if (file.path === filePath) {
+					leaves.push(leaf);
+				}
+			});
+
+			if (leaves.length >= 2) {
+				const leaf1 = leaves[0];
+				const leaf2 = leaves[1];
+				if (leaf1 && leaf2) {
+					if (!this.linkedLeaves.has(leaf1)) {
+						this.linkedLeaves.set(leaf1, new Set());
+					}
+					if (!this.linkedLeaves.has(leaf2)) {
+						this.linkedLeaves.set(leaf2, new Set());
+					}
+					this.linkedLeaves.get(leaf1)!.clear();
+					this.linkedLeaves.get(leaf2)!.clear();
+					this.linkedLeaves.get(leaf1)!.add(leaf2);
+					this.linkedLeaves.get(leaf2)!.add(leaf1);
+					restoredCount++;
+				}
+			}
+		});
+
+		if (restoredCount > 0) {
+			console.log(`[SyncFile] Restored ${restoredCount} link pair(s)`);
+		}
 
 		this.updateLeafVisualIndicators();
 	}

@@ -3,10 +3,14 @@ import SyncFileOnlyPlugin from "./main";
 
 export interface SyncFileOnlySettings {
 	enabled: boolean;
+	autoRestoreLinks: boolean;
+	savedPairs: string[];
 }
 
 export const DEFAULT_SETTINGS: SyncFileOnlySettings = {
-	enabled: true
+	enabled: true,
+	autoRestoreLinks: false,
+	savedPairs: []
 }
 
 export class SyncSettingTab extends PluginSettingTab {
@@ -29,6 +33,16 @@ export class SyncSettingTab extends PluginSettingTab {
 				.setValue(this.plugin.settings.enabled)
 				.onChange(async (value) => {
 					this.plugin.settings.enabled = value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('Auto-restore links on restart')
+			.setDesc('Automatically restore pane links when Obsidian restarts (links are restored if the same files are open)')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.autoRestoreLinks)
+				.onChange(async (value) => {
+					this.plugin.settings.autoRestoreLinks = value;
 					await this.plugin.saveSettings();
 				}));
 	}
